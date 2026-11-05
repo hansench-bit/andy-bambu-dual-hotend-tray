@@ -1,7 +1,8 @@
 """
-True Z-Buffered Technical CAD Renderer for the Andy Bambu Dual Hotend Tray STL.
-Produces a high-resolution 4-panel engineering sheet (Top Plan with Dimensions,
-Isometric Front-Left, Isometric Rear-Right, and Underside Support-Lip View).
+True Z-Buffered Technical CAD Renderer for the Andy Bambu Dual Hotend Tray STL (v2.0).
+Produces a high-resolution 4-panel engineering sheet showing the MakerWorld #1418034/#2106466
+format with the Front-Center Push-Button Latch Cutout, Side Finger-Lift Recesses,
+and Vertical Interleaved X2C + H2C Induction Layout.
 """
 
 import os
@@ -24,11 +25,8 @@ def look_at_matrix(eye, target, up=np.array([0.0, 0.0, 1.0])):
     return r, u, -f
 
 
-def rasterize_orthographic(mesh, eye, target=np.array([0.0, 0.0, 10.0]), up=np.array([0.0, 0.0, 1.0]),
-                           width=900, height=620, span_x=210.0):
-    """
-    Fast vectorized orthographic Z-buffer rasterizer with Phong shading and CAD feature coloring.
-    """
+def rasterize_orthographic(mesh, eye, target=np.array([0.0, 0.0, 9.0]), up=np.array([0.0, 0.0, 1.0]),
+                           width=900, height=620, span_x=205.0):
     r, u, view_dir = look_at_matrix(np.asarray(eye, dtype=float), np.asarray(target, dtype=float), np.asarray(up, dtype=float))
 
     verts = mesh.vertices - target
@@ -44,15 +42,12 @@ def rasterize_orthographic(mesh, eye, target=np.array([0.0, 0.0, 10.0]), up=np.a
     normals = mesh.face_normals
     centroids = mesh.triangles_center
 
-    # Back-face culling (only keep faces facing toward eye)
     facing = (normals @ view_dir) > -0.05
     f_idx = np.where(facing)[0]
 
-    # Sort faces back-to-front by mean vz, then rasterize bounding boxes
     tri_vz = vz[faces[f_idx]].mean(axis=1)
     order = f_idx[np.argsort(tri_vz)]
 
-    # Lighting
     light1 = (view_dir + 0.45 * r + 0.55 * u)
     light1 /= np.linalg.norm(light1)
     light2 = (view_dir - 0.50 * r - 0.30 * u)
@@ -60,30 +55,29 @@ def rasterize_orthographic(mesh, eye, target=np.array([0.0, 0.0, 10.0]), up=np.a
 
     diff1 = np.clip(normals @ light1, 0.0, 1.0)
     diff2 = np.clip(normals @ light2, 0.0, 1.0)
-    shade = 0.25 + 0.58 * diff1 + 0.22 * diff2
+    shade = 0.28 + 0.54 * diff1 + 0.22 * diff2
 
-    # Assign engineering CAD colors per face
     face_rgb = np.zeros((len(faces), 3), dtype=np.float32)
     zc = centroids[:, 2]
     nz = normals[:, 2]
 
-    # Default body: anodized slate-blue
-    face_rgb[:] = np.array([0.26, 0.58, 0.82])
-    # Top rim surface (Z ~ 20.0)
-    top_mask = (zc > 19.88) & (nz > 0.85)
-    face_rgb[top_mask] = np.array([0.22, 0.29, 0.38])
-    # 0.4 mm debossed text floor (Z ~ 19.60)
-    txt_mask = (np.abs(zc - 19.60) < 0.12) & (nz > 0.85)
+    # Default cavity/wall body: marble-slate blue
+    face_rgb[:] = np.array([0.30, 0.60, 0.84])
+    # Top outer perimeter rim (Z ~ 18.50)
+    rim_mask = (zc > 18.35) & (nz > 0.85)
+    face_rgb[rim_mask] = np.array([0.82, 0.86, 0.90])
+    # Main recessed deck surface (Z ~ 17.00)
+    deck_mask = (np.abs(zc - 17.00) < 0.12) & (nz > 0.85)
+    face_rgb[deck_mask] = np.array([0.24, 0.31, 0.40])
+    # 0.4 mm debossed text floor (Z ~ 16.60)
+    txt_mask = (np.abs(zc - 16.60) < 0.12) & (nz > 0.85)
     face_rgb[txt_mask] = np.array([0.98, 0.68, 0.16])
-    # 45-deg lead-in chamfers near top rim
-    ch_mask = (zc > 19.0) & (zc < 19.95) & (nz > 0.3) & (nz < 0.85)
-    face_rgb[ch_mask] = np.array([0.38, 0.72, 0.94])
+    # 45-deg lead-in chamfers
+    ch_mask = (zc > 16.1) & (zc < 17.05) & (nz > 0.3) & (nz < 0.85)
+    face_rgb[ch_mask] = np.array([0.44, 0.76, 0.96])
     # Deep pocket floors
-    fl_mask = (zc > 2.2) & (zc < 8.5) & (nz > 0.85)
-    face_rgb[fl_mask] = np.array([0.16, 0.45, 0.66])
-    # Retention beads
-    bead_mask = (zc > 10.2) & (zc < 12.8) & (np.abs(centroids[:, 0]) > 41.0) & (np.abs(centroids[:, 0]) < 46.5)
-    face_rgb[bead_mask] = np.array([0.95, 0.45, 0.20])
+    fl_mask = (zc > 2.2) & (zc < 5.0) & (nz > 0.85)
+    face_rgb[fl_mask] = np.array([0.16, 0.44, 0.66])
 
     face_rgb = np.clip(face_rgb * shade[:, None], 0.0, 1.0)
 
@@ -150,26 +144,26 @@ def main():
 
     mesh = trimesh.load(stl_path)
 
-    print("Rasterizing Z-buffered CAD views...")
+    print("Rasterizing Z-buffered v2.0 CAD views...")
     img_top = rasterize_orthographic(
-        mesh, eye=[0.0, 0.0, 200.0], target=[0.0, 0.0, 10.0], up=[0.0, 1.0, 0.0], span_x=200.0
+        mesh, eye=[0.0, 0.0, 200.0], target=[0.0, 0.0, 9.0], up=[0.0, 1.0, 0.0], span_x=198.0
     )
     img_iso1 = rasterize_orthographic(
-        mesh, eye=[-130.0, -145.0, 135.0], target=[0.0, 0.0, 9.0], up=[0.0, 0.0, 1.0], span_x=215.0
+        mesh, eye=[-125.0, -145.0, 135.0], target=[0.0, 0.0, 8.5], up=[0.0, 0.0, 1.0], span_x=212.0
     )
     img_iso2 = rasterize_orthographic(
-        mesh, eye=[135.0, 140.0, 130.0], target=[0.0, 0.0, 9.0], up=[0.0, 0.0, 1.0], span_x=215.0
+        mesh, eye=[130.0, -140.0, 130.0], target=[0.0, 0.0, 8.5], up=[0.0, 0.0, 1.0], span_x=212.0
     )
     img_bot = rasterize_orthographic(
-        mesh, eye=[110.0, -135.0, -130.0], target=[0.0, 0.0, 9.0], up=[0.0, 0.0, 1.0], span_x=215.0
+        mesh, eye=[110.0, -135.0, -130.0], target=[0.0, 0.0, 8.5], up=[0.0, 0.0, 1.0], span_x=212.0
     )
 
     fig, axes = plt.subplots(2, 2, figsize=(16, 11), dpi=180, facecolor="#0f172a")
     views = [
-        (axes[0, 0], img_top, "TOP PLAN VIEW — Split-Deck Layout & 0.4mm Debossed Size Labels"),
-        (axes[0, 1], img_iso1, "ISOMETRIC FRONT-LEFT — X2C Finned Slots + H2C Induction Slots"),
-        (axes[1, 0], img_iso2, "ISOMETRIC REAR-RIGHT — Side Lift Cutouts & 45° Lead-In Chamfers"),
-        (axes[1, 1], img_bot, "UNDERSIDE VIEW — 45° Stepped Support Lip & Perimeter Foot Ring"),
+        (axes[0, 0], img_top, "TOP PLAN VIEW — Push-Button Latch Cutout & Vertical Interleaved Layout"),
+        (axes[0, 1], img_iso1, "ISOMETRIC FRONT-LEFT — Push-Button Gap, X2C Finned + H2C Induction"),
+        (axes[1, 0], img_iso2, "ISOMETRIC FRONT-RIGHT — Side Finger Recesses, Corner Ears & Sock Pockets"),
+        (axes[1, 1], img_bot, "UNDERSIDE VIEW — Flat Support Base & Through-Cutout for Push Latch"),
     ]
 
     for ax, im, title in views:
@@ -178,7 +172,7 @@ def main():
         ax.set_axis_off()
 
     plt.suptitle(
-        "Andy Bambu Toolbox — Dual Hotend Replacement Tray (184.20 × 114.20 × 20.00 mm | Watertight Manifold Solid)",
+        "Andy Bambu Toolbox — v2.0 Dual Hotend Tray (MakerWorld #1418034/#2106466 Push-Button Gap Format)",
         fontsize=13.5,
         fontweight="bold",
         color="#f8fafc",
