@@ -1,42 +1,39 @@
 """
-Parametric CAD Generator for Andy Bambu Toolbox Upper Replacement Tray (v3.0 — Option B-2)
-Exact MakerWorld #1418034 (H2D/H2S) & #2106466 (H2C) Outer Silhouette with:
-  - Front-Center Push-Button Latch Cutout (through-gap for Bambu logo push lock)
-  - Left & Right Recessed Side Finger-Lift Cutouts with 4 Corner Ears (no interior side grooves)
+Parametric CAD Generator for Andy Bambu Toolbox Upper Replacement Tray (v4.0 — Option B-2)
+Calibrated directly to MakerWorld #2106466 (H2C Tool Box Hotend Box), #1418034 (H2D/H2S),
+Vortek H2C 3MF reference geometry, and physical nozzle test-fit photogrammetry:
+  - Outer Shell: 184.20 x 114.20 x 19.00 mm with front-center push-button lock through-gap,
+    4 corner ears, and recessed left/right side finger-lift walls (171.4 mm inner deck width)
   - Zero Engraved / Debossed Text on the tray surface
-  - Full 10-Hotend Option B-2 Vertical Interleaved Layout:
-      * Left Deck:  5x Left-Hand Standard Finned Hotends WITH Silicone Sock Mounted ON
-                    (3 top pointing down + 2 interleaved bottom pointing up)
-      * Right Deck: 5x Right-Hand H2C Induction Hotends with bulbous +0.50 mm coil relief
-                    (3 top pointing down + 2 interleaved bottom pointing up)
-      * Lower Dead Spaces Filled (Option B-2):
-          - Bottom-Left  (X = -68.5, Y = -29.5): 1x Induction Silicone Sock Pocket
-          - Center       (X =   0.0, Y = -22.5): 1x Wiper / Purge Pad Slot (above Push-Button Gap)
-          - Bottom-Right (X = +68.5, Y = -29.5): 1x Induction Silicone Sock Pocket
+  - Left Section (5x Interleaved Left-Hand H2D/H2C Standard Finned Hotends, 56.4 mm total length):
+      * 3.2 x 7.2 mm top filament inlet boss notch
+      * 19.6 mm wide x 18.0 mm full-depth heatsink fin cavity + 4.8 mm upper overhang relief
+        (22.8 mm total 19.6 mm-wide heatsink opening to clear all 8 fins & 'H2 | 0.2' overhang)
+      * 22.4 mm span finger-pinch side scoops
+      * 12.0 mm wide flanged heater-block channel with 6.6 mm deep central trough + 5.2 mm tip cone
+  - Right Section (5x Interleaved Right-Hand H2C Induction Hotends, 57.6 mm total length):
+      * 6.2 x 8.6 mm top mushroom-pin cap cavity
+      * Stepped heatsink cavity: 15.8 x 8.0 mm upper block step + 19.2 x 11.0 mm lower 4-fin step
+        (19.0 mm total heatsink length) with 22.2 mm span finger-pinch scoops
+      * 9.8 mm wide cylindrical shaft channel with 6.8 mm deep central cradle trough
+      * 14.8 mm diameter bulbous induction head cavity + 4.6 mm pointed tip cone
+  - 3 Lower Accessory Pockets (Option B-2):
+      * Bottom-Left  (X = -74.2, Y = -31.0): 1x H2C Induction Silicone Sock Pocket
+      * Center       (X =   0.0, Y = -25.0): 1x Wiper / Silicone Purge Pad Slot
+      * Bottom-Right (X = +74.2, Y = -31.0): 1x H2C Induction Silicone Sock Pocket
 """
 
 import os
+import numpy as np
+import shapely.geometry as sg
+import shapely.ops as so
+import manifold3d as m3d
 import trimesh
-from build123d import (
-    BuildPart,
-    BuildSketch,
-    Plane,
-    Locations,
-    Mode,
-    Rectangle,
-    RectangleRounded,
-    Circle,
-    SlotOverall,
-    Polygon,
-    extrude,
-    loft,
-    offset,
-    export_stl,
-    export_step,
-)
+
+m3d.set_circular_segments(96)
 
 # ==============================================================================
-# 1. OUTER SILHOUETTE & TOLERANCE PARAMETERS (mm)
+# 1. OUTER SILHOUETTE & TOLERANCE PARAMETERS (mm) — MAKERWORLD #2106466 CALIBRATED
 # ==============================================================================
 BOX_INNER_X = 185.00
 BOX_INNER_Y = 115.00
@@ -44,339 +41,320 @@ OUTER_WALL_OFFSET = 0.40  # -0.40 mm clearance per side
 
 TRAY_X = BOX_INNER_X - 2.0 * OUTER_WALL_OFFSET  # 184.20 mm
 TRAY_Y = BOX_INNER_Y - 2.0 * OUTER_WALL_OFFSET  # 114.20 mm
-TRAY_Z = 18.50                                  # 18.5 mm height matching Andy upper tray
-DECK_RECESS = 1.50                              # 1.5 mm recessed inner deck inside outer rim
-DECK_Z = TRAY_Z - DECK_RECESS                   # 17.00 mm main deck surface
+TRAY_Z = 19.00                                  # 19.00 mm total tray height
+DECK_RECESS = 1.50                              # 1.50 mm recessed inner deck inside outer rim
+DECK_Z = TRAY_Z - DECK_RECESS                   # 17.50 mm main deck surface
+RIM_WALL = 2.20                                 # 2.20 mm perimeter rim wall matching #2106466
 CORNER_RADIUS = 8.00                            # Corner ear outer radius
 
 # Front-Center Push-Button Latch Through-Gap (-Y front edge, X = 0)
 LATCH_GAP_W = 19.50       # Width (X) of the push-button gap
-LATCH_GAP_D = 15.60       # Depth (Y) from front -Y edge into tray
+LATCH_GAP_D = 15.20       # Depth (Y) from front -Y edge into tray
 LATCH_CORNER_R = 2.50
 
 # Left & Right Side Finger-Lift Recesses (-X and +X edges between the 4 corner ears)
-SIDE_RECESS_SPAN_Y = 72.00  # Leaves 21.1 mm tall corner ears at top (+Y) and bottom (-Y)
-SIDE_RECESS_DEPTH_X = 6.80  # Recessed 6.8 mm inward from outer X edge
+# 4.20 mm recess + 2.20 mm rim wall leaves X = [-85.70, +85.70] (171.40 mm) inner deck width
+SIDE_RECESS_SPAN_Y = 70.00
+SIDE_RECESS_DEPTH_X = 4.20
 
-# Floor & Clearances
-FLOOR_THICKNESS = 2.40
-TOL_HOTEND = 0.35           # +0.35 mm non-locking clearance
-TOL_SOCK = 0.20             # +0.20 mm snug silicone sock fit
-TOL_COIL_RELIEF = 0.50      # +0.50 mm extra clearance around H2C induction head
-LOCK_INTERFERENCE = 0.15    # 0.15 mm neck retention snap bead
+# Floor & Pocket Depths
+FLOOR_THICKNESS = 2.00                 # 2.00 mm solid bottom floor
+MAIN_FLOOR_Z = FLOOR_THICKNESS + 1.50  # 3.50 mm (14.00 mm main pocket depth + 1.50 mm deep central cradle)
 
 
-def make_outer_silhouette():
-    """
-    Constructs the exact 2D outer footprint of the Andy H2D/H2C upper tray:
-    - 184.2 x 114.2 mm rounded rectangle with 4 corner ears
-    - Left & Right recessed finger-lift cutouts (6.8 mm deep x 72 mm tall)
-    - Front-center push-button latch through-gap (19.5 mm wide x 15.6 mm deep at -Y, X=0)
-    """
-    with BuildSketch(Plane.XY) as sk:
-        RectangleRounded(TRAY_X, TRAY_Y, CORNER_RADIUS)
-
-        for x_sign in [-1, 1]:
-            with Locations((x_sign * (TRAY_X / 2.0 + 4.0), 0.0)):
-                RectangleRounded(
-                    2.0 * (SIDE_RECESS_DEPTH_X + 4.0),
-                    SIDE_RECESS_SPAN_Y,
-                    5.5,
-                    mode=Mode.SUBTRACT,
-                )
-
-        with Locations((0.0, -TRAY_Y / 2.0)):
-            RectangleRounded(
-                LATCH_GAP_W,
-                2.0 * LATCH_GAP_D,
-                LATCH_CORNER_R,
-                mode=Mode.SUBTRACT,
-            )
-    return sk.sketch
-
-
-def cut_pocket(sketch_fn, floor_z, top_z=DECK_Z, lead_in=0.50):
-    """
-    Cuts a vertical cavity from floor_z to top_z, plus a clean flared lead-in rim
-    at the top mouth for easy drop-in placement.
-    """
-    with BuildSketch(Plane.XY.offset(floor_z)) as sk_main:
-        sketch_fn()
-    extrude(sk_main.sketch, amount=(top_z - floor_z) + 0.05, mode=Mode.SUBTRACT)
-
-    if lead_in > 0:
-        with BuildSketch(Plane.XY.offset(top_z - lead_in)) as sk_ch:
-            sketch_fn()
-            offset(amount=lead_in)
-        extrude(sk_ch.sketch, amount=lead_in + 0.05, mode=Mode.SUBTRACT)
-
-
-def add_vertical_slot_retention_bead(x_wall, y_center, side_sign, z_center=10.5):
-    """
-    Adds a 0.15 mm interference retention bead along a vertical slot's neck wall (X-wall).
-    Uses 45-degree top/bottom draft ramps so it prints cleanly without support.
-    """
-    bead_len_y = 3.4
-    bead_half_z = 1.0
-    with BuildSketch(Plane.XY.offset(z_center - bead_half_z)) as sk1:
-        with Locations((x_wall + side_sign * 0.12, y_center)):
-            RectangleRounded(0.24, bead_len_y, 0.06)
-    with BuildSketch(Plane.XY.offset(z_center)) as sk2:
-        with Locations((x_wall - side_sign * (LOCK_INTERFERENCE / 2.0), y_center)):
-            RectangleRounded(0.24 + LOCK_INTERFERENCE, bead_len_y, 0.06)
-    with BuildSketch(Plane.XY.offset(z_center + bead_half_z)) as sk3:
-        with Locations((x_wall + side_sign * 0.12, y_center)):
-            RectangleRounded(0.24, bead_len_y, 0.06)
-    loft([sk1.sketch, sk2.sketch, sk3.sketch], ruled=True, mode=Mode.ADD)
-
-
-def cut_x2c_sock_on_hotend_vertical(xc, yc, point_down=True):
-    """
-    Cuts a vertical Left-Hand (X2C / H2D Standard Finned) Hotend slot WITH the Silicone Sock
-    mounted ON the heater block:
-      - Top inlet stem pocket (5.55 x 5.8 mm)
-      - Square finned heatsink block pocket (16.55 x 15.75 mm) + finger-pinch scoops (20.35 mm span)
-      - Short neck step (9.35 mm wide) with 0.15 mm retention snap beads
-      - Mounted "CAUTION HOT" Silicone Sock body cavity (16.75 mm wide x 14.55 mm long)
-      - Tapered silicone sock boot + conical pointed nozzle tip runout
-      - Deeper central floor clearance groove so the nozzle tip never touches bottom plastic
-    """
-    s = -1.0 if point_down else 1.0
-
-    hs_w = 16.2 + TOL_HOTEND      # 16.55 mm
-    hs_l = 15.4 + TOL_HOTEND      # 15.75 mm
-    neck_w = 9.0 + TOL_HOTEND     # 9.35 mm
-    sock_w = 16.4 + TOL_HOTEND    # 16.75 mm (silicone sock mounted on heater block)
-    sock_l = 14.2 + TOL_HOTEND    # 14.55 mm
-
-    y_stem = yc + s * (-21.8)
-    y_hs = yc + s * (-12.0)
-    y_neck = yc + s * (-2.0)
-    y_sock = yc + s * (6.8)
-
-    def main_profile():
-        # Inlet stem
-        with Locations((xc, y_stem)):
-            RectangleRounded(5.2 + TOL_HOTEND, 5.8, 0.9)
-        # Heatsink block
-        with Locations((xc, y_hs)):
-            RectangleRounded(hs_w, hs_l, 1.2)
-        # Neck step
-        with Locations((xc, y_neck)):
-            Rectangle(neck_w, 5.5)
-        # Mounted Silicone Sock Body on heater block
-        with Locations((xc, y_sock)):
-            RectangleRounded(sock_w, sock_l, 1.5)
-        # Tapered sock boot + conical nozzle tip
-        tip_pts = [
-            (xc - 6.6, yc + s * 13.0),
-            (xc + 6.6, yc + s * 13.0),
-            (xc + 4.8, yc + s * 19.5),
-            (xc, yc + s * 24.3),
-            (xc - 4.8, yc + s * 19.5),
-        ]
-        Polygon(*tip_pts)
-
-    cut_pocket(main_profile, floor_z=FLOOR_THICKNESS + 1.4, lead_in=0.50)
-
-    # Deeper central floor groove under nozzle tip & mounted sock so nozzle tip hovers freely
-    def deep_groove():
-        with Locations((xc, yc + s * 5.0)):
-            SlotOverall(35.0, 5.4, rotation=90)
-
-    cut_pocket(deep_groove, floor_z=FLOOR_THICKNESS, top_z=FLOOR_THICKNESS + 1.6, lead_in=0.0)
-
-    # Finger-pinch scoops on left and right of heatsink
-    def pinch_scoops():
-        with Locations((xc, y_hs)):
-            SlotOverall(hs_w + 3.8, 10.2)
-
-    cut_pocket(pinch_scoops, floor_z=FLOOR_THICKNESS + 5.5, lead_in=0.45)
-
-    # Mild retention snap beads on the neck walls (0.15 mm interference)
-    add_vertical_slot_retention_bead(xc + neck_w / 2.0, y_neck, side_sign=+1, z_center=10.5)
-    add_vertical_slot_retention_bead(xc - neck_w / 2.0, y_neck, side_sign=-1, z_center=10.5)
-
-
-def cut_h2c_induction_hotend_vertical(xc, yc, point_down=True):
-    """
-    Cuts a vertical Right-Hand H2C Induction Hotend slot centered at (xc, yc),
-    matching MakerWorld #2106466:
-      - Total length clearance: 49.9 mm (49.2 mm nominal + 2*0.35 mm)
-      - Top inlet stem pocket (5.55 x 5.8 mm)
-      - Upper H2C smart connector / heatsink block (15.15 x 16.35 mm)
-      - Left/Right finger-pinch scoops at upper block
-      - Cylindrical shaft channel (8.75 mm wide) with 0.15 mm retention beads
-      - Bulbous / flared circular induction coil head pocket (Dia 14.20 mm)
-        with +0.50 mm radial and floor relief to protect delicate coil coating
-      - Pointed conical nozzle tip clearance at the end
-    """
-    s = -1.0 if point_down else 1.0
-
-    y_stem = yc + s * (-22.2)
-    y_blk = yc + s * (-12.0)
-    y_neck = yc + s * (1.5)
-    y_coil = yc + s * (15.2)
-
-    blk_w = 14.8 + TOL_HOTEND     # 15.15 mm
-    blk_l = 16.0 + TOL_HOTEND     # 16.35 mm
-    neck_w = 8.4 + TOL_HOTEND     # 8.75 mm
-    coil_dia = 13.2 + 2.0 * TOL_COIL_RELIEF  # 14.20 mm (+0.50 mm radial clearance per side)
-
-    def ind_profile():
-        with Locations((xc, y_stem)):
-            RectangleRounded(5.2 + TOL_HOTEND, 5.8, 0.9)
-        with Locations((xc, y_blk)):
-            RectangleRounded(blk_w, blk_l, 1.3)
-        with Locations((xc, y_neck)):
-            Rectangle(neck_w, 24.0)
-        with Locations((xc, y_coil)):
-            Circle(coil_dia / 2.0)
-        tip_pts = [
-            (xc - coil_dia * 0.40, yc + s * 17.5),
-            (xc + coil_dia * 0.40, yc + s * 17.5),
-            (xc, yc + s * 24.9),
-        ]
-        Polygon(*tip_pts)
-
-    cut_pocket(ind_profile, floor_z=FLOOR_THICKNESS + 1.4, lead_in=0.50)
-
-    # Extra +0.50 mm floor relief under the induction coil head & nozzle tip
-    def coil_floor_relief():
-        with Locations((xc, yc + s * 5.0)):
-            SlotOverall(35.0, 5.4, rotation=90)
-        with Locations((xc, y_coil)):
-            Circle(coil_dia / 2.0 - 0.5)
-
-    cut_pocket(
-        coil_floor_relief,
-        floor_z=FLOOR_THICKNESS,
-        top_z=FLOOR_THICKNESS + 1.6,
-        lead_in=0.0,
+# ==============================================================================
+# 2. 2D SHAPELY & MANIFOLD3D HELPERS
+# ==============================================================================
+def rounded_rect(xc, yc, w, h, r=0.0):
+    if r <= 0.0:
+        return sg.box(xc - w / 2.0, yc - h / 2.0, xc + w / 2.0, yc + h / 2.0)
+    r = min(r, w / 2.0 - 0.01, h / 2.0 - 0.01)
+    core = sg.box(
+        xc - w / 2.0 + r,
+        yc - h / 2.0 + r,
+        xc + w / 2.0 - r,
+        yc + h / 2.0 - r,
     )
-
-    # Finger-pinch scoops on left and right of the upper H2C block
-    def ind_pinch():
-        with Locations((xc, y_blk)):
-            SlotOverall(blk_w + 3.8, 10.2)
-
-    cut_pocket(ind_pinch, floor_z=FLOOR_THICKNESS + 5.5, lead_in=0.45)
-
-    # Mild retention snap beads on neck walls (0.15 mm interference)
-    add_vertical_slot_retention_bead(xc + neck_w / 2.0, yc + s * (-1.0), side_sign=+1, z_center=10.5)
-    add_vertical_slot_retention_bead(xc - neck_w / 2.0, yc + s * (-1.0), side_sign=-1, z_center=10.5)
+    return core.buffer(r, quad_segs=24)
 
 
-def cut_induction_sock_vertical(xc, yc):
+def slot_overall(xc, yc, overall_len, width, vertical=False):
+    r = width / 2.0
+    half_span = max(0.0, (overall_len - width) / 2.0)
+    if vertical:
+        line = sg.LineString([(xc, yc - half_span), (xc, yc + half_span)])
+    else:
+        line = sg.LineString([(xc - half_span, yc), (xc + half_span, yc)])
+    return line.buffer(r, quad_segs=24)
+
+
+def poly_to_cs(poly):
+    if poly.is_empty:
+        return m3d.CrossSection()
+    polys = [poly] if isinstance(poly, sg.Polygon) else [g for g in poly.geoms if isinstance(g, sg.Polygon)]
+    contours = []
+    for p in polys:
+        ext = np.array(p.exterior.coords[:-1], dtype=np.float64)
+        if not sg.LinearRing(ext).is_ccw:
+            ext = ext[::-1]
+        contours.append(ext)
+        for interior in p.interiors:
+            hole = np.array(interior.coords[:-1], dtype=np.float64)
+            if sg.LinearRing(hole).is_ccw:
+                hole = hole[::-1]
+            contours.append(hole)
+    return m3d.CrossSection(contours, m3d.FillRule.EvenOdd)
+
+
+def extrude_poly(poly, z_bottom, z_top, lead_in=0.40):
     """
-    Cuts a form-fitted vertical pocket for the rounded/molded H2C induction thermal cover
-    (+0.20 mm snug fit, sits completely flush below the tray rim).
+    Extrudes a 2D shapely polygon from z_bottom to z_top, plus a 45-degree
+    stepped lead-in bevel at the top rim for effortless drop-in placement.
     """
-    w_cyl = 11.8 + TOL_SOCK    # 12.00 mm
-    l_cyl = 23.5 + TOL_SOCK    # 23.70 mm
-
-    def ind_sock_profile():
-        with Locations((xc, yc + 11.2)):
-            RectangleRounded(4.6 + TOL_SOCK, 4.2, 0.8)
-        with Locations((xc, yc - 0.5)):
-            SlotOverall(l_cyl, w_cyl, rotation=90)
-
-    cut_pocket(ind_sock_profile, floor_z=DECK_Z - 13.5, lead_in=0.45)
-
-    def ind_sock_pinch():
-        with Locations((xc, yc - 0.5)):
-            SlotOverall(w_cyl + 3.2, 8.5)
-
-    cut_pocket(ind_sock_pinch, floor_z=DECK_Z - 8.0, lead_in=0.45)
+    cs = poly_to_cs(poly)
+    main_vol = cs.extrude((z_top - z_bottom) + 0.05).translate([0.0, 0.0, z_bottom])
+    if lead_in > 0.0:
+        steps = 4
+        for i in range(1, steps + 1):
+            frac = i / float(steps)
+            z0 = z_top - lead_in * (1.0 - (i - 1) / float(steps))
+            dz = (lead_in / float(steps)) + 0.04
+            bevel_poly = poly.buffer(lead_in * frac, quad_segs=16)
+            bevel_vol = poly_to_cs(bevel_poly).extrude(dz).translate([0.0, 0.0, z0])
+            main_vol = main_vol + bevel_vol
+    return main_vol
 
 
-def cut_wiper_slot_vertical(xc, yc, w=13.6, h=25.5):
+def make_outer_silhouette_poly():
+    outer = rounded_rect(0.0, 0.0, TRAY_X, TRAY_Y, CORNER_RADIUS)
+    for x_sign in [-1.0, 1.0]:
+        cut_side = rounded_rect(
+            x_sign * (TRAY_X / 2.0 + 4.0),
+            0.0,
+            2.0 * (SIDE_RECESS_DEPTH_X + 4.0),
+            SIDE_RECESS_SPAN_Y,
+            5.0,
+        )
+        outer = outer.difference(cut_side)
+    cut_latch = rounded_rect(
+        0.0,
+        -TRAY_Y / 2.0,
+        LATCH_GAP_W,
+        2.0 * LATCH_GAP_D,
+        LATCH_CORNER_R,
+    )
+    outer = outer.difference(cut_latch)
+    return outer
+
+
+# ==============================================================================
+# 3. CALIBRATED POCKET GENERATORS (MAKERWORLD #2106466 + PHOTOGRAMMETRY)
+# ==============================================================================
+def get_h2d_finned_hotend_polys(xc, y_origin, point_down=True):
     """
-    Cuts a dedicated vertical Wiper / Silicone Pad pocket with finger-pinch scoop.
+    Returns (main_poly, overhang_poly, deep_cradle_poly, pinch_poly) for the
+    Left-Hand H2D/H2C Standard Finned Hotend (56.40 mm total length):
+      - d =  0.0 ..  3.2 mm : Top filament inlet boss notch (7.2 mm wide x 3.2 mm long)
+      - d =  3.2 .. 21.2 mm : Main full-depth heatsink fin pocket (19.6 mm wide x 18.0 mm long)
+      - d = 21.2 .. 26.0 mm : Upper 'H2 | 0.2' overhang relief step (19.6 mm wide x 4.8 mm long,
+                              extending 22.8 mm total from inlet face so all 8 fins drop in cleanly)
+      - Finger-pinch side scoops (22.4 mm span x 10.0 mm long)
+      - d = 21.2 .. 51.2 mm : Flanged heater-block channel (12.0 mm wide) + 6.6 mm wide deep cradle
+      - d = 51.2 .. 56.4 mm : Pointed nozzle tip cone (5.2 mm long, total slot length = 56.4 mm)
     """
-    def wiper_profile():
-        with Locations((xc, yc)):
-            RectangleRounded(w, h, 2.0)
+    s = -1.0 if point_down else 1.0
 
-    cut_pocket(wiper_profile, floor_z=FLOOR_THICKNESS + 1.0, top_z=DECK_Z, lead_in=0.45)
+    def y_at(d):
+        return y_origin + s * d
 
-    def wiper_pinch():
-        with Locations((xc, yc)):
-            SlotOverall(w + 3.4, 8.5)
+    hs_w = 19.60
+    shaft_w = 12.00
 
-    cut_pocket(wiper_pinch, floor_z=DECK_Z - 8.0, top_z=DECK_Z, lead_in=0.45)
+    p_inlet = rounded_rect(xc, y_at(1.60), 7.60, 3.20, 1.0)
+    p_hs = rounded_rect(xc, y_at(11.85), hs_w, 18.70, 1.2)
+    p_shaft = rounded_rect(xc, y_at(35.60), shaft_w, 31.20, 0.0)
+    p_tip = sg.Polygon([
+        (xc - shaft_w / 2.0, y_at(51.10)),
+        (xc + shaft_w / 2.0, y_at(51.10)),
+        (xc + 0.80, y_at(56.40)),
+        (xc - 0.80, y_at(56.40)),
+    ])
+    main_poly = so.unary_union([p_inlet, p_hs, p_shaft, p_tip])
+    overhang_poly = rounded_rect(xc, y_at(14.25), hs_w, 23.50, 1.2)
+    deep_cradle_poly = slot_overall(xc, y_at(36.25), 36.50, 6.60, vertical=True)
+    pinch_poly = slot_overall(xc, y_at(12.50), 22.40, 10.00, vertical=False)
+    return main_poly, overhang_poly, deep_cradle_poly, pinch_poly
 
 
-def build_dual_hotend_tray():
-    with BuildPart() as tray:
-        # ----------------------------------------------------------------------
-        # A. OUTER TRAY BODY WITH PUSH-BUTTON LATCH GAP & SIDE FINGER CUTOUTS
-        # ----------------------------------------------------------------------
-        sk_outer = make_outer_silhouette()
-        extrude(sk_outer, amount=TRAY_Z)
+def get_h2c_induction_hotend_polys(xc, y_origin, point_down=True):
+    """
+    Returns (main_poly, deep_cradle_poly, pinch_poly) for the
+    Right-Hand H2C Induction Hotend (57.60 mm total length):
+      - d =  0.0 ..  5.6 mm : Top mushroom-pin cap cavity (8.8 mm wide x 5.6 mm long)
+      - d =  5.6 .. 14.2 mm : Upper heatsink block step with 2 holes (16.0 mm wide x 8.6 mm long)
+      - d = 13.8 .. 25.4 mm : Lower 4-fin heatsink step with '0.4' label (19.2 mm wide x 11.6 mm long;
+                              total heatsink cavity length = 19.8 mm)
+      - Finger-pinch side scoops (22.2 mm span x 9.5 mm long)
+      - d = 25.4 .. 44.2 mm : Cylindrical shaft channel (9.8 mm wide x 18.8 mm long)
+      - d = 44.2 .. 53.0 mm : Bulbous round induction nozzle head cavity (Dia 14.8 mm, centered at d = 48.6 mm)
+      - d = 53.0 .. 57.6 mm : Pointed nozzle tip cone (4.6 mm long, total slot length = 57.6 mm)
+    """
+    s = -1.0 if point_down else 1.0
 
-        # Recessed inner deck (1.5 mm below the 2.8 mm thick outer perimeter rim wall,
-        # matching MakerWorld #1418034 and #2106466 — no interior side slots, no text)
-        with BuildSketch(Plane.XY.offset(DECK_Z)) as sk_deck_recess:
-            offset(sk_outer, amount=-2.80)
-        extrude(sk_deck_recess.sketch, amount=DECK_RECESS + 0.1, mode=Mode.SUBTRACT)
+    def y_at(d):
+        return y_origin + s * d
 
-        # ----------------------------------------------------------------------
-        # B. LEFT SECTION (X < 0): 5x LEFT HOTENDS (WITH SILICONE SOCK MOUNTED ON)
-        # ----------------------------------------------------------------------
-        left_slots = [
-            (-59.5, 23.2, True),
-            (-35.5, 23.2, True),
-            (-11.5, 23.2, True),
-            (-47.5, -23.2, False),
-            (-23.5, -23.2, False),
-        ]
-        for xc, yc, p_down in left_slots:
-            cut_x2c_sock_on_hotend_vertical(xc, yc, point_down=p_down)
+    upper_hs_w = 16.00
+    lower_hs_w = 19.20
+    shaft_w = 9.80
+    head_dia = 14.80
 
-        # ----------------------------------------------------------------------
-        # C. RIGHT SECTION (X > 0): 5x RIGHT H2C INDUCTION HOTENDS
-        # ----------------------------------------------------------------------
-        right_slots = [
-            (11.5, 23.2, True),
-            (35.5, 23.2, True),
-            (59.5, 23.2, True),
-            (23.5, -23.2, False),
-            (47.5, -23.2, False),
-        ]
-        for xc, yc, p_down in right_slots:
-            cut_h2c_induction_hotend_vertical(xc, yc, point_down=p_down)
+    p_pin = rounded_rect(xc, y_at(3.00), 8.80, 6.00, 1.2)
+    p_hs_up = rounded_rect(xc, y_at(9.90), upper_hs_w, 8.60, 1.2)
+    p_hs_lo = rounded_rect(xc, y_at(19.60), lower_hs_w, 11.60, 1.2)
+    p_shaft = rounded_rect(xc, y_at(36.50), shaft_w, 25.00, 0.0)
+    p_head = sg.Point(xc, y_at(48.60)).buffer(head_dia / 2.0, quad_segs=32)
+    p_tip = sg.Polygon([
+        (xc - 5.20, y_at(51.50)),
+        (xc + 5.20, y_at(51.50)),
+        (xc + 0.80, y_at(57.60)),
+        (xc - 0.80, y_at(57.60)),
+    ])
+    main_poly = so.unary_union([p_pin, p_hs_up, p_hs_lo, p_shaft, p_head, p_tip])
 
-        # ----------------------------------------------------------------------
-        # D. THREE LOWER DEAD-SPACE POCKETS (OPTION B-2)
-        # ----------------------------------------------------------------------
-        # 1. Far Bottom-Left (X = -68.5, Y = -29.5): Induction Silicone Sock Pocket
-        cut_induction_sock_vertical(-68.5, -29.5)
+    cradle_slot = slot_overall(xc, y_at(35.50), 39.00, 6.80, vertical=True)
+    cradle_head = sg.Point(xc, y_at(48.60)).buffer(head_dia / 2.0 - 0.80, quad_segs=32)
+    deep_cradle_poly = so.unary_union([cradle_slot, cradle_head])
 
-        # 2. Center above Push-Button Gap (X = 0.0, Y = -22.5): Wiper Slot
-        cut_wiper_slot_vertical(0.0, -22.5, w=13.6, h=25.5)
+    pinch_poly = slot_overall(xc, y_at(19.70), 22.20, 9.50, vertical=False)
+    return main_poly, deep_cradle_poly, pinch_poly
 
-        # 3. Far Bottom-Right (X = +68.5, Y = -29.5): Induction Silicone Sock Pocket
-        cut_induction_sock_vertical(68.5, -29.5)
 
-    return tray.part
+def get_induction_sock_polys(xc, yc):
+    w_sock = 14.60
+    l_sock = 24.00
+    p_tab = rounded_rect(xc, yc + 11.50, 6.20, 4.50, 1.0)
+    p_body = slot_overall(xc, yc - 0.50, l_sock, w_sock, vertical=True)
+    main_poly = so.unary_union([p_tab, p_body])
+    pinch_poly = slot_overall(xc, yc - 0.50, w_sock + 3.40, 8.50, vertical=False)
+    return main_poly, pinch_poly
+
+
+def get_wiper_slot_polys(xc, yc, w=14.20, h=25.00):
+    main_poly = rounded_rect(xc, yc, w, h, 2.0)
+    pinch_poly = slot_overall(xc, yc, w + 3.60, 8.50, vertical=False)
+    return main_poly, pinch_poly
+
+
+# ==============================================================================
+# 4. BUILD SOLID MANIFOLD TRAY
+# ==============================================================================
+LEFT_SLOTS = [
+    (-63.8, 45.2, True),
+    (-37.8, 45.2, True),
+    (-11.8, 45.2, True),
+    (-50.8, -45.2, False),
+    (-24.8, -45.2, False),
+]
+
+RIGHT_SLOTS = [
+    (11.8, 44.6, True),
+    (37.8, 44.6, True),
+    (63.8, 44.6, True),
+    (24.8, -44.6, False),
+    (50.8, -44.6, False),
+]
+
+SOCK_SLOTS = [
+    (-74.2, -31.0),
+    (74.2, -31.0),
+]
+
+WIPER_SLOT = (0.0, -25.0, 14.2, 25.0)
+
+
+def build_dual_hotend_tray_mesh():
+    outer_poly = make_outer_silhouette_poly()
+    inner_deck_poly = outer_poly.buffer(-RIM_WALL, quad_segs=24)
+
+    # Start with outer body extruded to TRAY_Z, minus inner deck recess above DECK_Z
+    tray_vol = poly_to_cs(outer_poly).extrude(TRAY_Z)
+    deck_recess_vol = poly_to_cs(inner_deck_poly).extrude(DECK_RECESS + 0.10).translate([0.0, 0.0, DECK_Z])
+    tray_vol = tray_vol - deck_recess_vol
+
+    # Collect unioned 2D polygons by floor depth to minimize 3D boolean operations
+    polys_main_floor = []
+    polys_overhang = []
+    polys_deep_cradle = []
+    polys_pinch_95 = []
+    polys_pinch_85 = []
+
+    for xc, y0, p_down in LEFT_SLOTS:
+        p_main, p_ovh, p_cradle, p_pinch = get_h2d_finned_hotend_polys(xc, y0, point_down=p_down)
+        polys_main_floor.append(p_main)
+        polys_overhang.append(p_ovh)
+        polys_deep_cradle.append(p_cradle)
+        polys_pinch_95.append(p_pinch)
+
+    for xc, y0, p_down in RIGHT_SLOTS:
+        p_main, p_cradle, p_pinch = get_h2c_induction_hotend_polys(xc, y0, point_down=p_down)
+        polys_main_floor.append(p_main)
+        polys_deep_cradle.append(p_cradle)
+        polys_pinch_95.append(p_pinch)
+
+    for xc, yc in SOCK_SLOTS:
+        p_main, p_pinch = get_induction_sock_polys(xc, yc)
+        polys_main_floor.append(p_main)
+        polys_pinch_85.append(p_pinch)
+
+    wx, wy, ww, wh = WIPER_SLOT
+    p_wmain, p_wpinch = get_wiper_slot_polys(wx, wy, ww, wh)
+    polys_main_floor.append(p_wmain)
+    polys_pinch_85.append(p_wpinch)
+
+    # Check that no two main pockets accidentally overlap
+    for i in range(len(polys_main_floor)):
+        for j in range(i + 1, len(polys_main_floor)):
+            inter = polys_main_floor[i].intersection(polys_main_floor[j])
+            if not inter.is_empty and inter.area > 0.01:
+                print(f"WARNING: Pocket {i} and Pocket {j} intersect (area={inter.area:.2f} mm^2)")
+
+    # Build monotonic Z-slab unions so shared walls have zero duplicate/near-coincident vertices
+    u_cradle = so.unary_union(polys_deep_cradle)
+    u_main = so.unary_union(polys_main_floor)
+    u_ovh = so.unary_union([u_main] + polys_overhang)
+    u_p95 = so.unary_union([u_ovh] + polys_pinch_95)
+    u_p85 = so.unary_union([u_p95] + polys_pinch_85)
+
+    z_ovh = DECK_Z - 10.50  # 7.00 mm
+    z_p95 = DECK_Z - 9.50   # 8.00 mm
+    z_p85 = DECK_Z - 8.50   # 9.00 mm
+
+    tray_vol = tray_vol - poly_to_cs(u_cradle).extrude((MAIN_FLOOR_Z - FLOOR_THICKNESS) + 0.05).translate([0.0, 0.0, FLOOR_THICKNESS])
+    tray_vol = tray_vol - poly_to_cs(u_main).extrude((z_ovh - MAIN_FLOOR_Z) + 0.05).translate([0.0, 0.0, MAIN_FLOOR_Z])
+    tray_vol = tray_vol - poly_to_cs(u_ovh).extrude((z_p95 - z_ovh) + 0.05).translate([0.0, 0.0, z_ovh])
+    tray_vol = tray_vol - poly_to_cs(u_p95).extrude((z_p85 - z_p95) + 0.05).translate([0.0, 0.0, z_p95])
+    tray_vol = tray_vol - extrude_poly(u_p85, z_p85, DECK_Z, lead_in=0.40)
+
+    mesh_data = tray_vol.to_mesh()
+    tm = trimesh.Trimesh(vertices=mesh_data.vert_properties[:, :3], faces=mesh_data.tri_verts, process=True)
+    return tm
 
 
 if __name__ == "__main__":
     out_dir = os.path.dirname(os.path.abspath(__file__))
     stl_path = os.path.join(out_dir, "andy_dual_hotend_tray.stl")
-    step_path = os.path.join(out_dir, "andy_dual_hotend_tray.step")
+    threemf_path = os.path.join(out_dir, "andy_dual_hotend_tray.3mf")
 
-    print("Building v3.0 (Option B-2) parametric 3D solid...")
-    part = build_dual_hotend_tray()
-
-    print(f"Exporting STEP to: {step_path}")
-    export_step(part, step_path)
+    print("Building v4.0 (MakerWorld #2106466 calibrated) parametric 3D solid...")
+    mesh = build_dual_hotend_tray_mesh()
 
     print(f"Exporting high-resolution STL to: {stl_path}")
-    export_stl(part, stl_path, tolerance=0.01, angular_tolerance=0.1)
+    mesh.export(stl_path)
 
-    mesh = trimesh.load(stl_path)
+    print(f"Exporting 3MF to: {threemf_path}")
+    mesh.export(threemf_path)
+
     extents = mesh.extents
     print("=== MESH & GEOMETRY VERIFICATION ===")
     print(f"Is Watertight / Manifold : {mesh.is_watertight}")
