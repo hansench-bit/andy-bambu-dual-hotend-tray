@@ -1,12 +1,12 @@
-# Andy Bambu Toolbox — Dual Hotend Replacement Tray (`X2C` + `H2C Induction` | Push-Button Gap Format)
+# Andy Bambu Toolbox — Dual Hotend Replacement Tray (`Option B-2`: 10 Hotends + 2 Induction Socks + 1 Center Wiper)
 
 Custom upper replacement tray (Second Layer) compatible with the **Andy Bambu Lab Double-Layer Locking Toolbox** ecosystem ([MakerWorld #1418034](https://makerworld.com/en/models/1418034-bambu-lab-h2d-h2s-double-layer-locking-toolbox-har) and [MakerWorld #2106466](https://makerworld.com/en/models/2106466-h2c-tool-box-hotend-box)).
 
-Designed with the **front-center push-button lock through-gap**, **4 corner ears with long left/right recessed finger-lift cutouts**, and **vertical interleaved dual-setup storage** holding both **X2C / H2D standard finned hotends** (left deck) and **H2C right-side cylindrical induction hotends** (right deck), complete with form-fitted silicone sock cavities, nozzle pin holes, and a central wiper pocket.
+![Multi-View 3D CAD Sheet](preview_orthographic.png)
 
-![Multi-View CAD Sheet](preview_orthographic.png)
+![2D Top-View Blueprint](2d_top_layout_options.png)
 
-## Direct Downloads
+## Direct Downloads (`v3.0.0` — Option B-2)
 
 - **Manifold 3D Print Mesh (`.STL`):** [`andy_dual_hotend_tray.stl`](andy_dual_hotend_tray.stl)
 - **Parametric B-Rep Solid (`.STEP`):** [`andy_dual_hotend_tray.step`](andy_dual_hotend_tray.step)
@@ -14,16 +14,15 @@ Designed with the **front-center push-button lock through-gap**, **4 corner ears
 
 ---
 
-## Specifications & Tolerances (`v2.1`)
+## Option B-2 Layout & Specifications
 
 | Feature | Specification |
 | :--- | :--- |
 | **Outer Envelope ($X \times Y \times Z$)** | $184.20\text{ mm} \times 114.20\text{ mm} \times 18.50\text{ mm}$ ($-0.40\text{ mm}$ per-wall clearance inside $185 \times 115\text{ mm}$ box shell) |
 | **Front-Center Push-Button Gap** | $19.50\text{ mm} \times 15.60\text{ mm}$ full-height U-shaped through-cutout at $-Y, X=0$ clearing the Bambu logo push-lock mechanism |
-| **Side Finger-Lift Recesses** | $6.80\text{ mm}$ inward recessed side walls spanning $72.0\text{ mm}$ between the 4 corner ears + interior finger-access slots |
-| **Left Deck (`X2C / H2D Standard`)** | 4x vertical interleaved contoured finned hotend slots (`0.2`, `0.4`, `0.6`, `0.8`) + 2x vertical `CAUTION HOT` finned silicone sock cavities |
-| **Center Zone** | Front-center push-button latch gap + rectangular `WIPER` / purge spare pocket + 6x round nozzle needle/pin holes |
-| **Right Deck (`H2C Induction`)** | 4x vertical interleaved H2C induction hotend slots (`IND 0.2`, `IND 0.4`, `IND 0.6`, `IND 0.8`) with bulbous $\varnothing 14.2\text{ mm}$ ($+0.50\text{ mm}$ coil relief) head + 3x molded induction sock capsules |
-| **Retention Mechanism** | $0.15\text{ mm}$ interference snap beads on neck cradles to keep hotends seated when inverted |
-| **Top Rim Clearance** | $1.50\text{ mm}$ recessed deck inside a $2.80\text{ mm}$ raised outer perimeter rim; all components sit $\ge 2.0\text{ mm}$ below top rim |
-| **Size Indicators** | $0.40\text{ mm}$ debossed bold labels (`0.2`, `0.4`, `0.6`, `0.8`, `IND 0.2..0.8`, `X2C SOCKS`, `H2C IND SOCKS`, `WIPER`) |
+| **Side Finger-Lift Recesses** | $6.80\text{ mm}$ inward recessed outer side walls spanning $72.0\text{ mm}$ between the 4 corner ears |
+| **Left Deck (`5x Left Hotends w/ Sock ON`)** | 5x vertical interleaved Left-Hand Finned Hotend slots (3 top pointing down + 2 bottom pointing up) contoured for the **`CAUTION HOT` silicone sock mounted ON the hotend** |
+| **Right Deck (`5x Right H2C Induction Hotends`)** | 5x vertical interleaved Right-Hand `H2C` Induction Hotend slots (3 top pointing down + 2 bottom pointing up) with bulbous $\varnothing 14.20\text{ mm}$ ($+0.50\text{ mm}$ coil relief) head |
+| **Bottom-Left & Bottom-Right Pockets** | **2x Induction Silicone Sock** pockets ($X = -68.5\text{ mm}$ and $X = +68.5\text{ mm}$) |
+| **Center Pocket (above Push-Button Gap)** | **1x Wiper / Silicone Pad Slot** ($13.60 \times 25.50\text{ mm}$ at $X = 0.0\text{ mm}, Y = -22.5\text{ mm}$) |
+| **Surface Finish** | Smooth recessed top deck ($Z = 17.00\text{ mm}$ inside $18.50\text{ mm}$ outer rim) with **zero engraved text** |
